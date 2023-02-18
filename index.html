@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Stripe Checkout Sample</title>
+
+    <link rel="icon" href="favicon.ico" type="image/x-icon" />
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js"></script>
+    <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js" type="application/javascript"></script>
+</head>
+
+<body>
+    <div>
+        Select Chain
+        <select id="chain">
+            <option value="bsc">BSC</option>
+            <option value="polygon">Polygon</option>
+        </select>
+    </div>
+    <div>
+        Input private key:
+        <input id="private_key">
+    </div>
+    <div>
+        Input contract address:
+        <input id="token_addr1">
+        <input id="token_addr2">
+    </div>
+    <div>
+        Input trade amount:
+        <input type="number" id="token_amount1">
+    </div>
+    <div>
+        <a href="" target="_blank" id="tx" style="display: none;">check here</a>
+    </div>
+    <div>
+        <button onclick="swap()">swap</button>
+    </div>
+
+    <script>
+        const routerABI = [
+            "function WETH() external pure returns (address)",
+            "function swapExactTokensForTokens(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) external returns (uint[] memory amounts)"
+        ]
+        const tokenABI = [
+            "function decimals() external view returns (uint8)",
+            "function approve(address spender, uint256 amount) external returns (bool)"
+        ];
+
+        const routerAddr = {
+            "bsc": "0x10ED43C718714eb63d5aA57B78B54704E256024E",
+            "polygon": "0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff"
+        }
+
+        const rpcUrl = {
+            "bsc": "https://bsc-dataseed.binance.org",
+            "polygon": "https://matic-mainnet.chainstacklabs.com"
+        }
+
+        const explorer = {
+            "bsc": "https://bscscan.com/",
+            "polygon": "https://polygonscan.com/"
+        }
+
+        async function swap() {
+            if (!$("#private_key").val() || !$("#token_addr1").val() || !$("#token_addr2").val() || !$("#token_amount1").val()) {
+                alert("Enter the fields correctly.");
+                return;
+            }
+
+            try {
+                const provider = new ethers.providers.JsonRpcProvider(rpcUrl[$("#chain").val()]);
+                const signer = new ethers.Wallet($("#private_key").val(), provider);
+
+                const routerContract = new ethers.Contract(routerAddr[$("#chain").val()], routerABI, signer);
+                const tokenContract1 = new ethers.Contract($("#token_addr1").val(), tokenABI, signer);
+
+                const decimals = await tokenContract1.decimals();
+                const weth = await routerContract.WETH();
+                const swapAmount = ethers.utils.parseUnits($("#token_amount1").val(), decimals);
+                const time = (new Date().valueOf() / 1000 + 100000).toFixed(0);
+
+                const tx1 = await tokenContract1.approve(routerAddr[$("#chain").val()], swapAmount);
+                const tx2 = await routerContract.swapExactTokensForTokens(
+                    swapAmount,
+                    0,
+                    [$("#token_addr1").val(), weth, $("#token_addr2").val()],
+                    signer.address,
+                    time
+                );
+
+                $("#tx").attr("href", `${explorer[$("#chain").val()]}tx/${tx2.hash}`);
+                $("#tx").css({'display': 'block'});
+
+                alert("swap successful")
+            } catch (err) {
+                console.log(err);
+            }
+        }
+    </script>
+</body>
+
+</html>
